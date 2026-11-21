@@ -175,6 +175,25 @@ describe('commands', () => {
     expect(payload.resourceIds).toEqual([...new Set(payload.resourceIds)].sort())
   })
 
+  it('explain --list refuses a resource id or error code instead of dropping it', async () => {
+    expect(await run(['explain', '--list', 'github.repo', '--json'], deps())).toBe(ExitCode.failed)
+    const payload = writer.jsonObjects()[0] as { ok: boolean; message: string; errorCodes?: string[] }
+    expect(payload.ok).toBe(false)
+    expect(payload.message).toContain('github.repo')
+    expect(payload.errorCodes).toBeUndefined()
+
+    const text = new CaptureWriter()
+    expect(await run(['explain', 'github.repo', '--list'], { ...deps(), writer: text })).toBe(ExitCode.failed)
+    expect(text.outText).toContain('Usage: cimiento explain')
+    expect(text.outText).not.toContain('Error codes:')
+  })
+
+  it('explain --list without a manifest prints the note and no empty resource heading', async () => {
+    expect(await run(['explain', '--list'], deps())).toBe(ExitCode.ok)
+    expect(writer.outText).toContain('No stack.yaml in this folder.')
+    expect(writer.outText).not.toContain('Selected resource ids:')
+  })
+
   it('explain --list reports an invalid manifest instead of silently omitting its resources', async () => {
     writeFileSync(join(dir, 'stack.yaml'), 'not: [valid')
     expect(await run(['explain', '--list', '--json'], deps())).toBe(ExitCode.needsHuman)
